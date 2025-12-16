@@ -1,0 +1,208 @@
+---
+title: "2341406_SamplingTechniques_CIA1"
+author: '2341406'
+date: "2025-11-24"
+output: pdf_document
+---
+
+```{r}
+# Set seed for reproducibility
+set.seed(363)
+
+# 1. CREATE HYPOTHETICAL POPULATION
+# ----------------------------------
+N <- 1000  # Total population size (cars in district)
+
+# Generate population data
+population <- data.frame(
+  car_id = 1:N,
+  brand = sample(c("Toyota", "Honda", "Ford", "Chevrolet", "Nissan", 
+                   "Hyundai", "Volkswagen", "BMW", "Mercedes", "Audi"),
+                 N, replace = TRUE,
+                 prob = c(0.15, 0.15, 0.12, 0.10, 0.10, 0.10, 0.10, 0.08, 0.05, 0.05)),
+  age_years = round(rexp(N, rate = 0.15) + 1, 1),  # Exponential distribution
+  mileage_km = round(rnorm(N, mean = 80000, sd = 40000)),
+  fuel_type = sample(c("Petrol", "Diesel", "Electric", "Hybrid"),
+                     N, replace = TRUE,
+                     prob = c(0.50, 0.30, 0.10, 0.10)),
+  annual_maintenance_cost = round(rnorm(N, mean = 1200, sd = 400))
+)
+```
+
+```{r}
+# Ensure mileage is positive
+population$mileage_km <- pmax(population$mileage_km, 5000)
+View(population)
+
+# Print population summary
+cat("POPULATION SUMMARY\n")
+cat("==================\n")
+cat("Total cars (N):", N, "\n\n")
+
+cat("Population Parameters:\n")
+cat("Mean Age:", round(mean(population$age_years), 2), "years\n")
+cat("Mean Mileage:", round(mean(population$mileage_km), 2), "km\n")
+cat("Mean Annual Maintenance Cost: $", round(mean(population$annual_maintenance_cost), 2), "\n")
+cat("SD Annual Maintenance Cost: $", round(sd(population$annual_maintenance_cost), 2), "\n\n")
+
+```
+
+```{r}
+# 2. SAMPLING PARAMETERS
+# ----------------------
+n <- 100  # Sample size
+num_simulations <- 1000  # Number of simulations for comparison
+
+cat("SAMPLING DESIGN\n")
+cat("===============\n")
+cat("Sample size (n):", n, "\n")
+cat("Sampling fraction:", round(n/N, 3), "\n")
+cat("Number of simulations:", num_simulations, "\n\n")
+```
+
+```{r}
+# 3. SINGLE SAMPLE COMPARISON
+# ---------------------------
+cat("SINGLE SAMPLE COMPARISON\n")
+cat("========================\n\n")
+
+# SRSWR - Simple Random Sample With Replacement
+srswr_sample <- population[sample(1:N, n, replace = TRUE), ]
+
+cat("SRSWR Sample:\n")
+cat("Unique cars sampled:", length(unique(srswr_sample$car_id)), "\n")
+cat("Duplicate cars:", n - length(unique(srswr_sample$car_id)), "\n")
+cat("Mean maintenance cost: $", round(mean(srswr_sample$annual_maintenance_cost), 2), "\n\n")
+
+# SRSWOR - Simple Random Sample Without Replacement
+srswor_sample <- population[sample(1:N, n, replace = FALSE), ]
+
+cat("SRSWOR Sample:\n")
+cat("Unique cars sampled:", length(unique(srswor_sample$car_id)), "\n")
+cat("Mean maintenance cost: $", round(mean(srswor_sample$annual_maintenance_cost), 2), "\n\n")
+
+```
+
+```{r}
+# 4. SIMULATION STUDY
+# -------------------
+cat("SIMULATION STUDY (", num_simulations, "iterations)\n")
+cat("==========================================\n\n")
+
+# Storage for simulation results
+srswr_means <- numeric(num_simulations)
+srswor_means <- numeric(num_simulations)
+srswr_unique_counts <- numeric(num_simulations)
+
+# Run simulations
+for(i in 1:num_simulations) {
+  # SRSWR
+  srswr_idx <- sample(1:N, n, replace = TRUE)
+  srswr_means[i] <- mean(population$annual_maintenance_cost[srswr_idx])
+  srswr_unique_counts[i] <- length(unique(srswr_idx))
+  
+  # SRSWOR
+  srswor_idx <- sample(1:N, n, replace = FALSE)
+  srswor_means[i] <- mean(population$annual_maintenance_cost[srswor_idx])
+}
+```
+
+```{r}
+# 5. RESULTS COMPARISON
+# ---------------------
+true_mean <- mean(population$annual_maintenance_cost)
+
+cat("Sampling Distribution Results:\n")
+cat("-------------------------------\n")
+cat("True Population Mean: $", round(true_mean, 2), "\n\n")
+
+cat("SRSWR Results:\n")
+cat("  Mean of sample means: $", round(mean(srswr_means), 2), "\n")
+cat("  Bias:", round(mean(srswr_means) - true_mean, 2), "\n")
+cat("  Standard Error:", round(sd(srswr_means), 2), "\n")
+cat("  Average unique cars:", round(mean(srswr_unique_counts), 1), "out of", n, "\n\n")
+
+cat("SRSWOR Results:\n")
+cat("  Mean of sample means: $", round(mean(srswor_means), 2), "\n")
+cat("  Bias:", round(mean(srswor_means) - true_mean, 2), "\n")
+cat("  Standard Error:", round(sd(srswor_means), 2), "\n")
+cat("  Unique cars: Always", n, "(no duplicates)\n\n")
+
+cat("Efficiency Comparison:\n")
+cat("  Variance ratio (SRSWR/SRSWOR):", round(var(srswr_means)/var(srswor_means), 3), "\n")
+cat("  SRSWOR is", round((1 - var(srswor_means)/var(srswr_means))*100, 1), "% more efficient\n\n")
+
+```
+
+```{r}
+# 6. THEORETICAL COMPARISON
+# -------------------------
+cat("THEORETICAL STANDARD ERRORS\n")
+cat("===========================\n")
+pop_sd <- sd(population$annual_maintenance_cost)
+fpc <- sqrt((N - n)/(N - 1))  # Finite Population Correction
+
+se_srswr_theoretical <- pop_sd / sqrt(n)
+se_srswor_theoretical <- (pop_sd / sqrt(n)) * fpc
+
+cat("SRSWR Theoretical SE: $", round(se_srswr_theoretical, 2), "\n")
+cat("SRSWR Empirical SE: $", round(sd(srswr_means), 2), "\n\n")
+cat("SRSWOR Theoretical SE: $", round(se_srswor_theoretical, 2), "\n")
+cat("SRSWOR Empirical SE: $", round(sd(srswor_means), 2), "\n\n")
+cat("FPC Factor:", round(fpc, 4), "\n\n")
+```
+
+```{r}
+# 7. VISUALIZATIONS
+# -----------------
+par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+
+# Plot 1: Sampling distributions
+hist(srswr_means, breaks = 30, col = rgb(1, 0, 0, 0.5),
+     main = "Sampling Distributions",
+     xlab = "Sample Mean Maintenance Cost ($)",
+     xlim = range(c(srswr_means, srswor_means)))
+hist(srswor_means, breaks = 30, col = rgb(0, 0, 1, 0.5), add = TRUE)
+abline(v = true_mean, col = "darkgreen", lwd = 2, lty = 2)
+legend("topright", c("SRSWR", "SRSWOR", "True Mean"),
+       fill = c(rgb(1, 0, 0, 0.5), rgb(0, 0, 1, 0.5), NA),
+       border = c("black", "black", NA),
+       lty = c(NA, NA, 2), lwd = c(NA, NA, 2),
+       col = c(NA, NA, "darkgreen"), cex = 0.8)
+
+# Plot 2: Unique cars in SRSWR
+hist(srswr_unique_counts, breaks = 20, col = "coral",
+     main = "Unique Cars in SRSWR Samples",
+     xlab = "Number of Unique Cars",
+     ylab = "Frequency")
+abline(v = mean(srswr_unique_counts), col = "red", lwd = 2, lty = 2)
+abline(v = n, col = "blue", lwd = 2, lty = 2)
+legend("topleft", c("Mean", "Max (n=100)"),
+       col = c("red", "blue"), lty = 2, lwd = 2, cex = 0.8)
+
+# Plot 3: QQ plot comparison
+qqnorm(srswr_means, main = "SRSWR: Normal Q-Q Plot",
+       pch = 16, col = rgb(1, 0, 0, 0.5))
+qqline(srswr_means, col = "red", lwd = 2)
+
+# Plot 4: QQ plot SRSWOR
+qqnorm(srswor_means, main = "SRSWOR: Normal Q-Q Plot",
+       pch = 16, col = rgb(0, 0, 1, 0.5))
+qqline(srswor_means, col = "blue", lwd = 2)
+
+par(mfrow = c(1, 1))
+```
+
+```{r}
+# 8. KEY FINDINGS
+# ---------------
+cat("\nKEY FINDINGS\n")
+cat("============\n")
+cat("1. Both methods produce unbiased estimates\n")
+cat("2. SRSWOR is more efficient (smaller variance)\n")
+cat("3. SRSWR averages ~", round(mean(srswr_unique_counts), 0), 
+    "unique cars per sample\n")
+cat("4. FPC reduces SE for SRSWOR when sampling fraction is substantial\n")
+cat("5. Both sampling distributions are approximately normal (CLT)\n")
+```
+
